@@ -1,0 +1,73 @@
+Test Case 1: Standard Search Execution
+
+Prompt: "Show me what we have in the Equipment category."
+
+What to check: Verify it calls find_items, pulls the Goalie Gloves and Corner Flags, and lists them cleanly.
+
+Test Case 2: Multi-Step Inventory Audit
+
+Prompt: "Run an audit on our Merchandise and tell me if we need to restock anything right away."
+
+What to check: The agent should fetch the items, notice that the Official 2026 Match Ball Replica count (3) is well below the reorder level (20), and flag a Critical Restock Warning.
+
+Test Case 3: Proactive "Dead Stock" Strategy
+
+Prompt: "Do we have any slow-moving items?"
+
+What to check: The agent must inspect the data, locate the Vintage Woolen Supporter Scarf (which has a 30-day velocity of 0), and suggest a specific markdown or marketing bundle.
+
+Test Case 4: Precise Threshold Matching
+
+Prompt: "Update the Neon Red Corner Flags stock by adding 4 units."
+
+What to check: Since the current quantity is 1 and the reorder level is 5, adding 4 brings it to exactly 5. Ask the agent to audit the flags again to see if it smoothly transitions from a "critical warning" to a "healthy" inventory state.
+
+Test Case 5: Direct Zero Boundary (Stock Depletion)
+
+Prompt: "We just dispatched 3 Match Ball Replicas to the pitch. Update the system."
+
+What to check: This brings the balance from 3 down to exactly 0. Verify that the database accepts 0 perfectly and that a subsequent audit states the item is completely out of stock.
+
+Test Case 6: Negative Stock Trap Prevention
+
+Prompt: "Register a sale of 50 Matchmarket Pro Goalie Gloves."
+
+What to check: You only have 2 gloves in stock. See how the agent handles this. Does your Python server let the inventory drop to a broken negative value (-48), or does it logically stop you?
+
+Test Case 7: Case Sensitivity & Partial Typing
+
+Prompt: "get items from merchandise" (all lowercase) or "show me merchandis" (spelled incorrectly).
+
+What to check: See if Gemini's semantic engine automatically corrects the spelling and normalizes the input parameter to "Merchandise" before triggering the backend tool call.
+
+Test Case 8: Non-Existent Category Lookups
+
+Prompt: "Show me what stock we have in the Beverage category."
+
+What to check: The backend will return an empty array []. Ensure the agent doesn't make up random soda items, but instead uses its grounding instructions to say: "I checked the database, but found no active items under the category 'Beverage'."
+
+Test Case 9: Extreme/Irrational Numbers
+
+Prompt: "Add 999999999999 units to the Captain Armbands." or "Change the price of the whistles to -$5.00."
+
+What to check: Check if the agent blindly throws an integer overflow error/negative pricing error to the screen, or if it politely steps in to validate the input first.
+
+Test Case 10: The Match Preparation Pipeline (match_events -> stock_inventory)
+Prompt: "Check what events are scheduled for next week, then verify if our inventory covers expected crowds."
+
+What it proves: The agent will look up documents inside match_events, read that a match is active, pull the current product volumes from stock_inventory, and determine if a shortfall exists.
+
+Test Case 11: The Supply Chain Pipeline (supplier_orders)
+Prompt: "We have a pending supplier delivery for training bibs. Mark order #MM-9082 as 'Delivered' and log the arrival."
+
+What it proves: The agent fires modify_logistics_record directly into the supplier_orders collection, updates the text state parameter to 'Delivered', and updates your records cleanly.
+
+Test Case 12: The Marketing Clearance Link (promotions)
+Prompt: "Since we discovered that the Vintage Woolen Supporter Scarves are sitting as dead stock, register a new clearance campaign named 'Scarf Liquidation 2026' to track our progress."
+
+What it proves: The agent writes a promotion profile directly into your marketing database collection logs, connecting an analytical insight to a concrete business entry.
+
+Test Case 13: Staff Operations Audit (staff_schedule)
+Prompt: "Who is scheduled to manage the warehouse floors for our upcoming match shift?"
+
+What it proves: The agent pulls active shift logs from staff_schedule, verifying that personnel management is running smoothly side-by-side with your physical tracking.
