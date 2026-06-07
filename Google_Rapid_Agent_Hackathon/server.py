@@ -7,8 +7,7 @@ from fastapi.responses import JSONResponse
 import uvicorn
 from pymongo import MongoClient, ReturnDocument
 
-app = FastAPI(title="MatchMarket-HTTP-MCP-Engine")
-
+app = FastAPI(title="MatchMarket-Logistics-Webhook")
 db_client = None
 
 def get_database():
@@ -17,145 +16,140 @@ def get_database():
     if not connection_string:
         print("CRITICAL ERROR: MDB_MCP_CONNECTION_STRING is missing.", file=sys.stderr)
         sys.exit(1)
-        
     if db_client is None:
         db_client = MongoClient(connection_string)
-        print("Connected to MongoDB Atlas clusters successfully.", file=sys.stderr)
     return db_client["MatchMarket"]
 
 # =====================================================================
-# NATIVE MCP NATIVE OVER HTTP POST ROUTER
+# UNIFIED NATIVE MCP OVER HTTP POST ROUTER
 # =====================================================================
 
 @app.post("/")
 async def handle_mcp_http_request(request: Request) -> JSONResponse:
-    """
-    Natively processes formal Model Context Protocol (MCP) JSON-RPC 2.0 payloads
-    directly over synchronous HTTP POST for Agent Studio compatibility.
-    """
     try:
         body = await request.json()
         method = body.get("method")
         request_id = body.get("id", 0)
         
-        # 1. HANDLE HANDSHAKE INITIALIZATION
         if method == "initialize":
-            mcp_init_response = {
-                "jsonrpc": "2.0",
-                "id": request_id,
+            return JSONResponse({
+                "jsonrpc": "2.0", "id": request_id,
                 "result": {
                     "protocolVersion": "2025-11-25",
-                    "capabilities": {
-                        "tools": {} # Notifies the engine we support functions
-                    },
-                    "serverInfo": {
-                        "name": "MatchMarket-Core-Data-Engine",
-                        "version": "1.0.0"
-                    }
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "MatchMarket-Logistics-Engine", "version": "2.0.0"}
                 }
-            }
-            return JSONResponse(mcp_init_response)
+            })
 
-        # 2. HANDLE COMPILATION OF THE TOOLS DIRECTORY
         elif method == "tools/list":
-            mcp_tools_list = {
-                "jsonrpc": "2.0",
-                "id": request_id,
+            return JSONResponse({
+                "jsonrpc": "2.0", "id": request_id,
                 "result": {
                     "tools": [
                         {
-                            "name": "find_items",
-                            "description": "Queries the stock_inventory collection with optional filtering constraints.",
+                            "name": "lookup_logistics_data",
+                            "description": "Audits database logs across stock_inventory, promotions, match_events, staff_schedule, or supplier_orders.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
-                                    "category": {"type": "string", "description": "The target inventory segment, e.g. Merchandise or Equipment"}
-                                }
+                                    "collection": {"type": "string", "enum": ["stock_inventory", "promotions", "match_events", "staff_schedule", "supplier_orders"]},
+                                    "filter_key": {"type": "string", "description": "Field to filter by (e.g., 'category', 'status', 'event_name')"},
+                                    "filter_value": {"type": "string", "description": "The exact value to search for"}
+                                },
+                                "required": ["collection"]
                             }
                         },
                         {
-                            "name": "update_stock_quantity",
-                            "description": "Updates the stock count of an item dynamically by adding or subtracting units.",
+                            "name": "modify_logistics_record",
+                            "description": "Applies number adjustments, shifts quantities, or updates status fields across all operational collections.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
-                                    "item_name": {"type": "string", "description": "Exact text name of the product"},
-                                    "quantity_change": {"type": "integer", "description": "Positive integer to add, negative to subtract"}
+                                    "collection": {"type": "string", "enum": ["stock_inventory", "promotions", "match_events", "staff_schedule", "supplier_orders"]},
+                                    "search_key": {"type": "string", "description": "Field to identify the document (e.g., 'name', 'event_id', 'order_number')"},
+                                    "search_value": {"type": "string", "description": "Value identifying the document row"},
+                                    "update_field": {"type": "string", "description": "The field being modified (e.g., 'quantity', 'status')"},
+                                    "adjustment_value": {"type": "string", "description": "The new text status or numeric value to change/increment"}
                                 },
-                                "required": ["item_name", "quantity_change"]
+                                "required": ["collection", "search_key", "search_value", "update_field", "adjustment_value"]
                             }
                         }
                     ]
                 }
-            }
-            return JSONResponse(mcp_tools_list)
+            })
 
-        # 3. HANDLE LIVE CALLS INTO MONGODB ATLAS
         elif method == "tools/call":
             params = body.get("params", {})
             tool_name = params.get("name")
-            arguments = params.get("arguments", {})
-            
+            args = params.get("arguments", {})
             db = get_database()
-            output_content = ""
-
-            if tool_name == "find_items":
-                category = arguments.get("category", "Merchandise")
-                cursor = db["stock_inventory"].find({"category": category}).limit(5)
-                
-                results = []
-                for doc in cursor:
-                    results.append(f"• {doc['name']}: {doc['quantity']} units available (Price: ${doc['price']})")
-                
-                if results:
-                    output_content = f"Live inventory data for '{category}':\n\n" + "\n".join(results)
-                else:
-                    output_content = f"No active items found under category '{category}'."
-
-            elif tool_name == "update_stock_quantity":
-                item_name = arguments.get("item_name")
-                change = int(arguments.get("quantity_change", 0))
-                
-                updated_doc = db["stock_inventory"].find_one_and_update(
-                    {"name": item_name},
-                    {"$inc": {"quantity": change}},
-                    return_document=ReturnDocument.AFTER
-                )
-                if updated_doc:
-                    output_content = f"Success! '{item_name}' balance updated. New count: {updated_doc['quantity']} units."
-                else:
-                    output_content = f"Error: Item '{item_name}' was not found in records."
+            target_coll = args.get("collection")
             
-            else:
-                output_content = f"Unknown tool execution request: {tool_name}"
+            output_text = ""
 
-            # Format strictly as an MCP Content Item response block
-            mcp_call_response = {
+            # 1. READ CHANNELS: HUMAN READABLE MAPPING
+            if tool_name == "lookup_logistics_data":
+                query = {}
+                if args.get("filter_key") and args.get("filter_value"):
+                    query[args.get("filter_key")] = args.get("filter_value")
+                
+                cursor = db[target_coll].find(query).limit(5)
+                lines = []
+                
+                for doc in cursor:
+                    if target_coll == "stock_inventory":
+                        lines.append(f"• Item: {doc.get('name')} | Stock: {doc.get('quantity')} units | Price: ${doc.get('price')}")
+                    elif target_coll == "match_events":
+                        lines.append(f"• Event: {doc.get('event_name')} | Date: {doc.get('date')} | Venue: {doc.get('venue')} | Status: {doc.get('status')}")
+                    elif target_coll == "promotions":
+                        lines.append(f"• Campaign: {doc.get('campaign_name')} | Discount: {doc.get('discount')} | Target: {doc.get('target_item')} | Status: {doc.get('status')}")
+                    elif target_coll == "staff_schedule":
+                        lines.append(f"• Staff: {doc.get('staff_name')} | Role: {doc.get('role')} | Shift: {doc.get('shift')} | Status: {doc.get('status')}")
+                    elif target_coll == "supplier_orders":
+                        lines.append(f"• Order: {doc.get('order_number')} | Item: {doc.get('item_name')} | Qty: {doc.get('quantity')} | Status: {doc.get('status')}")
+                
+                if lines:
+                    output_text = f"Successfully synchronized database records for '{target_coll}':\n\n" + "\n".join(lines)
+                else:
+                    output_text = f"Logistics check complete: No matching records found inside '{target_coll}'."
+
+            # 2. WRITE CHANNELS: TRANSACTION HANDLING
+            elif tool_name == "modify_logistics_record":
+                search_query = {args.get("search_key"): args.get("search_value")}
+                field = args.get("update_field")
+                val = args.get("adjustment_value")
+                
+                try:
+                    update_op = {"$inc": {field: int(val)}}
+                except ValueError:
+                    update_op = {"$set": {field: val}}
+                    
+                updated_doc = db[target_coll].find_one_and_update(
+                    search_query, update_op, return_document=ReturnDocument.AFTER
+                )
+                
+                if updated_doc:
+                    output_text = f"Transaction Confirmed: Record '{args.get('search_value')}' inside '{target_coll}' has been successfully updated. Field '{field}' is now set to '{updated_doc.get(field)}'."
+                else:
+                    output_text = f"Transaction Declined: Target record '{args.get('search_value')}' was not found inside '{target_coll}'."
+
+            # WRAP COMPLIANTLY IN THE CHOSEN INTERFACE LAYER
+            return JSONResponse({
                 "jsonrpc": "2.0",
                 "id": request_id,
                 "result": {
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": output_content
-                        }
-                    ]
+                    "content": [{"type": "text", "text": output_text}]
                 }
-            }
-            return JSONResponse(mcp_call_response)
+            })
 
-        # Catch-all fallback for other lifecycle notifications
         return JSONResponse({"jsonrpc": "2.0", "id": request_id, "result": {}})
-
     except Exception as e:
-        print(f"Core Error: {str(e)}", file=sys.stderr)
         return JSONResponse({
             "jsonrpc": "2.0",
-            "id": body.get("id", 0) if isinstance(body, dict) else 0,
+            "id": request_id,
             "error": {"code": -32603, "message": str(e)}
-        }, status_code=200)
+        })
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
 
