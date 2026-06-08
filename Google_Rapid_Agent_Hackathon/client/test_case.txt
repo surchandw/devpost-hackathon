@@ -32,7 +32,7 @@ Test Case 6: Negative Stock Trap Prevention
 
 Prompt: "Register a sale of 50 Matchmarket Pro Goalie Gloves."
 
-What to check: You only have 2 gloves in stock. See how the agent handles this. Does your Python server let the inventory drop to a broken negative value (-48), or does it logically stop you?
+What to check: You only have 2 gloves in stock. Does Python server let the inventory drop to a broken negative value (-48), or does it logically stop?
 
 Test Case 7: Case Sensitivity & Partial Typing
 
@@ -60,14 +60,14 @@ What it proves: The agent will look up documents inside match_events, read that 
 Test Case 11: The Supply Chain Pipeline (supplier_orders)
 Prompt: "We have a pending supplier delivery for training bibs. Mark order #MM-9082 as 'Delivered' and log the arrival."
 
-What it proves: The agent fires modify_logistics_record directly into the supplier_orders collection, updates the text state parameter to 'Delivered', and updates your records cleanly.
+What it proves: The agent fires modify_logistics_record directly into the supplier_orders collection, updates the text state parameter to 'Delivered', and updates records cleanly.
 
 Test Case 12: The Marketing Clearance Link (promotions)
 Prompt: "Since we discovered that the Vintage Woolen Supporter Scarves are sitting as dead stock, register a new clearance campaign named 'Scarf Liquidation 2026' to track our progress."
 
-What it proves: The agent writes a promotion profile directly into your marketing database collection logs, connecting an analytical insight to a concrete business entry.
+What it proves: The agent writes a promotion profile directly into marketing database collection logs, connecting an analytical insight to a concrete business entry.
 
 Test Case 13: Staff Operations Audit (staff_schedule)
 Prompt: "Who is scheduled to manage the warehouse floors for our upcoming match shift?"
 
-What it proves: The agent pulls active shift logs from staff_schedule, verifying that personnel management is running smoothly side-by-side with your physical tracking.
+What it proves: The agent pulls active shift logs from staff_schedule, verifying that personnel management is running smoothly side-by-side with physical tracking.
