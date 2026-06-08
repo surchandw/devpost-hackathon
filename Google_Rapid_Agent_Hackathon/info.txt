@@ -30,16 +30,6 @@ gcloud run deploy matchmarket-mcp-server \
   --region us-central1 \
   --allow-unauthenticated \
   --set-env-vars MDB_MCP_CONNECTION_STRING="mongodb+srv://admin:MyPassword123@cluster0.pvpecbn.mongodb.net/MatchMarket"
-  
-  
-gcloud run deploy matchmarket-mcp-server \
-  --image us-central1-docker.pkg.dev/gen-lang-client-0729100476/matchmarket-repo/mcp-server:py-v9 \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --set-env-vars MDB_MCP_CONNECTION_STRING="mongodb+srv://admin:MyPassword123@cluster0.pvpecbn.mongodb.net/MatchMarket"
-
-
 
 Agent Docker image creation and deployment
 =========================================================================
@@ -53,15 +43,3 @@ gcloud run deploy matchmarket-logistics-agent \
   --allow-unauthenticated
 
 
-
-UI Docker image creation and deployment
-========================================================================
-gcloud builds submit --tag us-central1-docker.pkg.dev/gen-lang-client-0729100476/matchmarket-repo/streamlit-ui:v1 .
-
-
-gcloud run deploy matchmarket-frontend-ui \
-  --image us-central1-docker.pkg.dev/gen-lang-client-0729100476/matchmarket-repo/streamlit-ui:v1 \
-  --platform managed \
-  --region us-central1 \
-  --allow-unauthenticated \
-  --set-env-vars AGENT_SERVICE_URL="https://matchmarket-logistics-agent-124170541983.us-central1.run.app"
